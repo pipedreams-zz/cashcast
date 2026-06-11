@@ -1,0 +1,25 @@
+# === OS / OneDrive ===
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# === Claude Code (lokale Einstellungen nicht teilen; launch.json bleibt versioniert) ===
+.claude/settings.local.json
+
+# === Internes Planungsdokument (nicht öffentlich) ===
+cashcast-plan.md
+
+# === App-Backups (enthalten persönliche Finanzdaten — niemals committen!) ===
+cashcast-lite-*.json
+
+# === Künftige Vollversion (Node / Next.js) ===
+node_modules/
+.next/
+out/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
