@@ -32,6 +32,12 @@ Du gibst einen **Startkontostand zu einem Stichtag** an. Von dort schreibt die A
 ### Startkontostand
 Button **„Startkontostand"** → Betrag und Stichtag setzen. Ab diesem Tag und Stand wird gerechnet.
 
+### Kontostand korrigieren (Ist-Stand)
+Über die Zeit weicht der reale Kontostand von der Planung ab (unvorhergesehene Zahlungen, Schätzungen). Damit die Kurve wieder an der Realität andockt, kannst du zu einem Datum den **tatsächlichen Kontostand** hinterlegen: **⋯ → Kontostand-Korrekturen** (oder in der Startkontostand-Maske über den Link „Kontostand zu späterem Datum korrigieren").
+- Jede Korrektur ist ein **Anker**: Ab dem gewählten Datum rechnet die App mit deinem echten Wert weiter. Der Wert gilt als Stand **zu Tagesbeginn** (analog Startkontostand); frühere geplante Zahlungen werden dadurch ersetzt, Zahlungen ab dem Tag laufen normal weiter.
+- **Mehrere Korrekturen** über die Zeit sind möglich — jede re-verankert den Verlauf ab ihrem Datum.
+- Wirkt konsistent auf **Kurve, Kennzahlen, Liste und Szenariolinien**. Im Chart markiert eine **Raute** den Ist-Stand.
+
 ### Zahlungen erfassen
 Button **„+ Zahlung"**:
 - **Einnahme / Ausgabe** umschalten (bestimmt das Vorzeichen).
@@ -71,9 +77,11 @@ Jede Zahlung hat eine farbige Kategorie. Über **„Kategorien"** (Button oben) 
 
 ### Szenarien („Was wäre wenn?")
 - Ordne eine Zahlung in der Maske einem **Szenario** statt „Basis" zu (z. B. „Großauftrag" oder „Läuft gut").
-- Szenarien anlegen: Link **„Verwalten"** beim Szenario-Feld oder **⋯ → Szenarien verwalten** (Name + Farbe).
-- Sobald Szenarien existieren, erscheint über dem Chart eine **Szenario-Leiste**. Ein Klick auf einen Szenario-Chip schaltet ihn ein und zeigt eine **gestrichelte Vergleichslinie** im Chart: *Basis + dieses Szenario*. Mehrere gleichzeitig möglich.
-- **Wichtig zur Konsistenz:** Liste, Kennzahlen und Kategorie-Diagramme spiegeln immer den **festen Basis-Plan**. Szenario-Zahlungen erscheinen in der Liste als hypothetische Zeilen (Kontostand „–") und wirken ausschließlich als Chart-Vergleichslinie. So bleibt „real geplant" sauber von „was-wäre-wenn" getrennt.
+- Szenarien anlegen: Link **„Verwalten"** beim Szenario-Feld oder **⋯ → Szenarien verwalten** (Name + Farbe + Modus).
+- Jedes Szenario hat einen **Modus** (umschaltbar in der Szenario-Verwaltung):
+  - **Vergleichslinie** *(Standard)* — reine „Was-wäre-wenn"-Sicht: eine **gestrichelte Linie** im Chart (*Basis + dieses Szenario*), die den festen Plan **nicht** verändert. In der Leiste über dem Chart per Klick ein-/ausblendbar; in der Liste erscheinen die Zahlungen als hypothetische Zeilen (Kontostand „–").
+  - **In Planung übernehmen** — das Szenario wird **Teil des echten Cashflows**: es fließt in Kennzahlen, Liste (mit laufendem Kontostand), Kategorie-Diagramme und die durchgezogene Kurve ein. Übernommene Zahlungen tragen in der Liste ein farbiges Szenario-Kürzel. In der Szenario-Leiste erscheint der Chip als „⛓ in Planung"; ein Klick nimmt das Szenario wieder heraus (zurück zur Vergleichslinie).
+- Mehrere Szenarien gleichzeitig möglich — beliebig als Vergleichslinie und/oder übernommen.
 
 ### Hell / Dunkel
 Das **☾/☀-Symbol** oben schaltet zwischen hellem und dunklem Design um. Die Wahl wird gemerkt; beim allerersten Start folgt sie deiner System-Einstellung.
@@ -143,7 +151,12 @@ Der Export ist eine JSON-Datei mit dieser Struktur:
     { "id": "wohnen", "name": "Wohnen", "c": "#B0764F" }
   ],
   "scenarios": [                   // Szenarien
-    { "id": "gross", "name": "Großauftrag", "c": "#6E8CA8", "active": true }
+    { "id": "gross", "name": "Großauftrag", "c": "#6E8CA8",
+      "mode": "parallel",          // "parallel" (Vergleichslinie) | "merged" (in Planung übernommen)
+      "active": true }             // nur bei "parallel": Vergleichslinie sichtbar
+  ],
+  "corrections": [                 // Kontostand-Korrekturen (Ist-Stand-Anker)
+    { "date": "2026-08-20", "balance": 2600 }
   ],
   "done": [ "e123|2026-07-01" ],   // erledigte Termine: "<entryId>|<datum>"
   "entries": [                     // Zahlungen

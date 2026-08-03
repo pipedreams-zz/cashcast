@@ -143,6 +143,11 @@
   .cat-row input[type=color]{width:36px;height:36px;flex:0 0 auto;padding:0;border:1px solid var(--line);border-radius:9px;background:var(--bg-soft);cursor:pointer}
   .cat-row input[type=text]{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg-soft);color:var(--ink)}
   .cat-row input[type=text]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--card)}
+  .cat-row input[type=date],.cat-row input[type=number],.cat-row select{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg-soft);color:var(--ink);font-family:inherit;font-size:14px}
+  .cat-row input[type=date]:focus,.cat-row input[type=number]:focus,.cat-row select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--card)}
+  .cat-row select.scenmode-sel{flex:0 0 auto;max-width:200px;cursor:pointer}
+  .corr-row .corr-date{flex:1.1}
+  .corr-row .corr-bal{flex:1;text-align:right}
   .cat-row .del{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:15px;padding:6px 8px;border-radius:7px;flex:0 0 auto}
   .cat-row .del:hover{color:var(--danger);background:var(--bg-soft)}
   /* Erledigt-Häkchen */
@@ -164,6 +169,8 @@
   .scenchip.toggle .catdot{opacity:.4;transition:.12s}
   .scenchip.toggle.on{color:var(--ink);border-color:var(--sc);background:color-mix(in srgb,var(--sc) 12%,transparent)}
   .scenchip.toggle.on .catdot{opacity:1}
+  .scenchip.merged{color:var(--ink);border-color:var(--sc);background:color-mix(in srgb,var(--sc) 13%,transparent)}
+  .scenchip.merged .scenmode{font-size:10px;font-weight:600;opacity:.75;margin-left:2px;letter-spacing:.2px}
   .scenchip.add{border-style:dashed;color:var(--muted)}
   .scenchip.add:hover{color:var(--accent);border-color:var(--accent)}
   .scenchip.mini{padding:1.5px 8px;font-size:11px;border:0;cursor:default}
@@ -295,7 +302,7 @@
         <label style="display:flex;justify-content:space-between;align-items:center">Szenario
           <button type="button" class="linkbtn" id="manageScensLink">Verwalten</button></label>
         <select id="fScen"></select>
-        <div class="hint">„Basis" = fester Plan. Szenarien werden nur als Vergleichslinie im Chart simuliert.</div>
+        <div class="hint">„Basis" = fester Plan. Szenarien wirken als gestrichelte Vergleichslinie – oder lassen sich in der Szenario-Verwaltung in die Planung übernehmen.</div>
       </div>
       <div class="field">
         <label>Wiederholung</label>
@@ -340,6 +347,7 @@
         </div>
       </div>
       <div class="hint">Ab diesem Tag und Stand wird die Liquidität fortgeschrieben.</div>
+      <div style="text-align:right;margin-top:6px"><button type="button" class="linkbtn" id="openCorrFromStart">Kontostand zu späterem Datum korrigieren →</button></div>
       <div class="modal-actions">
         <div style="margin-left:auto;display:flex;gap:8px">
           <button type="button" class="btn" id="startCancel">Abbrechen</button>
@@ -357,6 +365,7 @@
     <div style="display:flex;flex-direction:column;gap:9px">
       <button class="btn" id="manageCatsBtn">🏷 Kategorien verwalten</button>
       <button class="btn" id="manageScensBtn">🔀 Szenarien verwalten</button>
+      <button class="btn" id="manageCorrBtn">📍 Kontostand-Korrekturen</button>
       <button class="btn" id="exportBtn">⤓ Exportieren (JSON)</button>
       <button class="btn" id="importBtn">⤒ Importieren (JSON)</button>
       <button class="btn" id="demoBtn">↻ Beispieldaten laden</button>
@@ -395,6 +404,22 @@
       <div style="margin-left:auto;display:flex;gap:8px">
         <button type="button" class="btn" id="catCancel">Abbrechen</button>
         <button type="button" class="btn primary" id="catSave">Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Balance correction manager modal -->
+<div class="overlay" id="corrOverlay" style="z-index:70">
+  <div class="modal" style="max-width:470px">
+    <h3>Kontostand-Korrekturen</h3>
+    <div class="hint" style="margin:-8px 0 12px">Trage zu einem Datum den <strong>tatsächlichen</strong> Kontostand ein (z. B. laut Bank). Ab diesem Tag rechnet die App mit dem echten Wert weiter — der Wert gilt als Stand zu Tagesbeginn (analog Startkontostand), geplante Zahlungen davor werden dadurch ersetzt.</div>
+    <div id="corrRows" class="catrows"></div>
+    <button type="button" class="btn sm" id="addCorrRow" style="margin-top:10px">+ Korrektur hinzufügen</button>
+    <div class="modal-actions">
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button type="button" class="btn" id="corrCancel">Abbrechen</button>
+        <button type="button" class="btn primary" id="corrSave">Speichern</button>
       </div>
     </div>
   </div>
@@ -454,11 +479,13 @@ let state = load();
 
 function load(){
   try{ const raw=localStorage.getItem(KEY); if(raw) return migrate(JSON.parse(raw)); }catch(e){}
-  return { startBalance:5000, startDate:todayISO(), horizon:6, group:"month", showCat:false, showPast:false, cats:cloneCats(), scenarios:[], done:[], lastExport:null, touched:false, entries:[] };
+  return { startBalance:5000, startDate:todayISO(), horizon:6, group:"month", showCat:false, showPast:false, cats:cloneCats(), scenarios:[], corrections:[], done:[], lastExport:null, touched:false, entries:[] };
 }
 function migrate(s){
   if(!Array.isArray(s.cats)||!s.cats.length) s.cats=cloneCats();
   if(!Array.isArray(s.scenarios)) s.scenarios=[];
+  s.scenarios.forEach(sc=>{ if(sc.mode!=="merged"&&sc.mode!=="parallel") sc.mode="parallel"; });
+  if(!Array.isArray(s.corrections)) s.corrections=[];
   if(!Array.isArray(s.done)) s.done=[];
   if(typeof s.lastExport==="undefined") s.lastExport=null;
   if(typeof s.touched==="undefined") s.touched=false;
@@ -518,19 +545,32 @@ function expandAll(filterFn){
   return occ;
 }
 
+/* ===== Kontostand-Korrekturen (Ist-Stand-Anker) ===== */
+// Nur Korrekturen ab Startdatum; pro Datum gilt der zuletzt gesetzte Wert.
+function corrList(){
+  const map=new Map();
+  (state.corrections||[]).forEach(c=>{ if(c&&c.date&&c.date>=state.startDate&&typeof c.balance==="number"&&isFinite(c.balance)) map.set(c.date,c.balance); });
+  return [...map.entries()].map(([date,balance])=>({date,balance})).sort((a,b)=> a.date<b.date?-1 : a.date>b.date?1 : 0);
+}
+
 /* ===== Running balance series ===== */
 function buildSeries(filterFn){
   const occ=expandAll(filterFn);
-  const pts=[{date:state.startDate, balance:state.startBalance, events:[]}];
-  let bal=state.startBalance;
+  const start=state.startDate;
+  const corrMap=new Map(corrList().map(c=>[c.date,c.balance]));
   const byDate=new Map();
-  for(const o of occ){ if(o.date<state.startDate) continue; if(!byDate.has(o.date)) byDate.set(o.date,[]); byDate.get(o.date).push(o); }
-  for(const dt of [...byDate.keys()].sort()){
-    const evs=byDate.get(dt); for(const ev of evs) bal+=ev.amount;
-    pts.push({date:dt,balance:bal,events:evs});
+  for(const o of occ){ if(o.date<start) continue; if(!byDate.has(o.date)) byDate.set(o.date,[]); byDate.get(o.date).push(o); }
+  const dates=[...new Set([start,...byDate.keys(),...corrMap.keys()])].sort();
+  const pts=[]; let bal=state.startBalance;
+  for(const dt of dates){
+    if(corrMap.has(dt)) bal=corrMap.get(dt);        // auf tatsächlichen Ist-Stand zurücksetzen
+    else if(dt===start) bal=state.startBalance;
+    const evs=byDate.get(dt)||[];
+    for(const ev of evs) bal+=ev.amount;            // geplante Zahlungen des Tages verrechnen
+    pts.push({date:dt,balance:bal,events:evs,correction:corrMap.has(dt)});
   }
   const end=horizonEndISO();
-  if(pts[pts.length-1].date<end) pts.push({date:end,balance:bal,events:[]});
+  if(pts[pts.length-1].date<end) pts.push({date:end,balance:bal,events:[],correction:false});
   return {pts,occ};
 }
 
@@ -648,6 +688,14 @@ function renderChart(series, extraLines){
     dot.addEventListener("mousemove",ev=>showTip(ev,p.date,p.balance,sum,evList));
     dot.addEventListener("mouseleave",hideTip); svg.appendChild(dot);
   }
+  // Ist-Stand-Korrekturen als Raute markieren
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i]; if(!p.correction) continue;
+    const cx=X(p.date),cy=Y(p.balance),s=5.5;
+    const dia=el("path",{d:`M ${cx} ${(cy-s).toFixed(1)} L ${(cx+s).toFixed(1)} ${cy} L ${cx} ${(cy+s).toFixed(1)} L ${(cx-s).toFixed(1)} ${cy} Z`,fill:col.ink,stroke:col.card,"stroke-width":1.5}); dia.style.cursor="pointer";
+    dia.addEventListener("mousemove",ev=>{ tip.innerHTML=`<b>${fmtDate(p.date)}</b> · Ist-Korrektur<span class="ttev">Kontostand: ${eur.format(p.balance)}</span>`; tip.style.opacity=1; tip.style.left=Math.min(ev.clientX+14,window.innerWidth-240)+"px"; tip.style.top=(ev.clientY+14)+"px"; });
+    dia.addEventListener("mouseleave",hideTip); svg.appendChild(dia);
+  }
   document.getElementById("chartRange").textContent=fmtDate(pts[0].date)+" – "+fmtDate(pts[pts.length-1].date);
 }
 function niceTicks(min,max,count){
@@ -670,14 +718,22 @@ function showTip(ev,date,bal,sum,evList){
 function hideTip(){ tip.style.opacity=0; }
 
 /* ===== Render: list ===== */
-function renderList(series, activeScens){
-  activeScens=activeScens||[];
+function renderList(series, activeScens, mergedSet){
+  activeScens=activeScens||[]; mergedSet=mergedSet||new Set();
   const wrap=document.getElementById("listWrap");
   const vs=viewStartISO(); const end=horizonEndISO();
-  // Basis-Zeilen mit laufendem Kontostand
-  let bal=state.startBalance; const rows=[];
-  for(const o of series.occ){ if(o.date<state.startDate) continue; bal+=o.amount; if(o.date>=vs) rows.push({...o,bal,isScen:false}); }
-  // Szenario-Zeilen (aktive Szenarien) – hypothetisch, ohne Pfad-Saldo
+  // Basis-Zeilen mit laufendem Kontostand (inkl. Ist-Stand-Korrekturen)
+  const corr=corrList(); let ci=0;
+  let bal=state.startBalance;
+  while(ci<corr.length && corr[ci].date<=state.startDate){ bal=corr[ci].balance; ci++; }
+  const rows=[];
+  for(const o of series.occ){
+    if(o.date<state.startDate) continue;
+    while(ci<corr.length && corr[ci].date<=o.date){ bal=corr[ci].balance; ci++; }  // Re-Anker auf Ist-Stand
+    bal+=o.amount;
+    if(o.date>=vs) rows.push({...o,bal,isScen:false});
+  }
+  // Szenario-Zeilen (aktive Vergleichs-Szenarien) – hypothetisch, ohne Pfad-Saldo
   for(const s of activeScens){
     for(const e of state.entries){
       if(e.scenario!==s.id) continue;
@@ -702,7 +758,7 @@ function renderList(series, activeScens){
     const sign=r.amount>0?"pos":"neg";
     const cat=catById(r.cat);
     const recurPill=r.recur&&r.recur!=="once"?`<span class="pill">${recurName(r.recur)}</span>`:"";
-    const catPill=`<span class="catpill" style="background:${hexToRgba(cat.c,.16)};color:${cat.c}">${cat.name}</span>`;
+    const catPill=`<span class="catpill" style="background:${hexToRgba(cat.c,.16)};color:${cat.c}">${escapeHtml(cat.name)}</span>`;
     if(r.isScen){
       const scenPill=`<span class="scenchip mini" style="background:${hexToRgba(r.scenColor,.18)};color:${r.scenColor}">${escapeHtml(r.scenName)}</span>`;
       html+=`<tr class="scen-row">
@@ -715,10 +771,12 @@ function renderList(series, activeScens){
       </tr>`;
     }else{
       const done=state.done.includes(doneKey(r.id,r.date));
+      const mScen = (r.scenario&&r.scenario!=="base"&&mergedSet.has(r.scenario)) ? state.scenarios.find(x=>x.id===r.scenario) : null;
+      const mergedPill = mScen ? `<span class="scenchip mini" style="background:${hexToRgba(mScen.c,.18)};color:${mScen.c}" title="Aus Szenario – in die Planung übernommen">${escapeHtml(mScen.name)}</span>` : "";
       html+=`<tr class="${r.bal<0?'row-neg':''} ${done?'done':''}">
         <td class="check"><button class="checkbtn ${done?'on':''}" title="Als erledigt markieren" onclick="toggleDone('${r.id}','${r.date}')">${done?'✓':''}</button></td>
         <td class="date">${fmtDateShort(r.date)}</td>
-        <td><div class="desc-cell"><span class="catdot" style="background:${cat.c}"></span><span class="desc-txt">${escapeHtml(r.desc)}</span> ${catPill}${recurPill}</div></td>
+        <td><div class="desc-cell"><span class="catdot" style="background:${cat.c}"></span><span class="desc-txt">${escapeHtml(r.desc)}</span> ${catPill}${recurPill}${mergedPill}</div></td>
         <td class="amt ${sign}">${r.amount>0?'+':''}${eur.format(r.amount)}</td>
         <td class="bal">${eur.format(r.bal)}</td>
         <td class="act"><button class="iconbtn" onclick="editEntry('${r.id}')">✎</button></td>
@@ -763,7 +821,7 @@ function renderCatChart(series,type,svgId,legendId,totalId,emptyMsg){
   let max=0,total=0; months.forEach(m=>{ const vals=Object.values(data[m]); const t=vals.reduce((a,b)=>a+b,0); if(t>max) max=t; total+=t; });
   const tEl=document.getElementById(totalId); if(tEl) tEl.textContent=eur.format(total);
   const present=state.cats.filter(c=>months.some(m=>(data[m][c.id]||0)>0));
-  legend.innerHTML=present.map(c=>`<span class="li"><span class="catdot" style="background:${c.c}"></span>${c.name}</span>`).join("");
+  legend.innerHTML=present.map(c=>`<span class="li"><span class="catdot" style="background:${c.c}"></span>${escapeHtml(c.name)}</span>`).join("");
   if(max<=0){ const W=svg.clientWidth||900; svg.setAttribute("viewBox",`0 0 ${W} 240`);
     const tx=el("text",{x:W/2,y:120,"text-anchor":"middle","font-size":13,fill:col.muted}); tx.textContent=emptyMsg; svg.appendChild(tx); return; }
 
@@ -784,7 +842,7 @@ function renderCatChart(series,type,svgId,legendId,totalId,emptyMsg){
       const v=data[m][c.id]||0; if(v<=0) continue;
       const h=(v/niceMax)*(y1-y0);
       const rect=el("rect",{x:(cx-barW/2).toFixed(1),y:(yCur-h).toFixed(1),width:barW.toFixed(1),height:h.toFixed(1),rx:2,fill:c.c}); rect.setAttribute("class","catseg");
-      rect.addEventListener("mousemove",ev=>{ tip.innerHTML=`<b>${monthLong(m)}</b><span class="ttev">${c.name}: ${eur.format(v)}</span>`; tip.style.opacity=1; tip.style.left=Math.min(ev.clientX+14,window.innerWidth-220)+"px"; tip.style.top=(ev.clientY+14)+"px"; });
+      rect.addEventListener("mousemove",ev=>{ tip.innerHTML=`<b>${monthLong(m)}</b><span class="ttev">${escapeHtml(c.name)}: ${eur.format(v)}</span>`; tip.style.opacity=1; tip.style.left=Math.min(ev.clientX+14,window.innerWidth-220)+"px"; tip.style.top=(ev.clientY+14)+"px"; });
       rect.addEventListener("mouseleave",hideTip);
       svg.appendChild(rect); yCur-=h;
     }
@@ -822,28 +880,35 @@ function updateLastExportHint(){
 const doneKey = (id,date) => id+"|"+date;
 window.toggleDone = (id,date)=>{ const k=doneKey(id,date); const i=state.done.indexOf(k); if(i>=0) state.done.splice(i,1); else state.done.push(k); render(); };
 window.toggleScen = id=>{ const s=state.scenarios.find(x=>x.id===id); if(s){ s.active=!s.active; render(); } };
+window.setScenMode = (id,mode)=>{ const s=state.scenarios.find(x=>x.id===id); if(s){ s.mode=mode; s.active = mode!=="merged"; render(); } };
 function renderScenBar(){
   const bar=document.getElementById("scenBar");
   if(!state.scenarios.length){ bar.style.display="none"; bar.innerHTML=""; return; }
   bar.style.display="";
+  const chips=state.scenarios.map(s=> s.mode==="merged"
+    ? `<button class="scenchip merged" style="--sc:${s.c}" title="In die Planung übernommen – klicken, um wieder als Vergleichslinie zu führen" onclick="setScenMode('${s.id}','parallel')"><span class="catdot" style="background:${s.c}"></span>${escapeHtml(s.name)}<span class="scenmode">⛓ in Planung</span></button>`
+    : `<button class="scenchip toggle ${s.active?'on':''}" style="--sc:${s.c}" title="Vergleichslinie ein-/ausblenden" onclick="toggleScen('${s.id}')"><span class="catdot" style="background:${s.c}"></span>${escapeHtml(s.name)}</button>`
+  ).join("");
   bar.innerHTML=`<span class="scenbar-label">Szenarien</span>`
     + `<span class="scenchip base" title="Immer enthalten">Basis</span>`
-    + state.scenarios.map(s=>`<button class="scenchip toggle ${s.active?'on':''}" style="--sc:${s.c}" onclick="toggleScen('${s.id}')"><span class="catdot" style="background:${s.c}"></span>${escapeHtml(s.name)}</button>`).join("")
+    + chips
     + `<button class="scenchip add" onclick="openScenManager()">+ verwalten</button>`;
 }
 
 /* ===== Master render ===== */
 function render(){
-  const baseSeries=buildSeries(isBaseEntry);
+  const merged=new Set(state.scenarios.filter(s=>s.mode==="merged").map(s=>s.id));
+  const inBase=e=>isBaseEntry(e)||merged.has(e.scenario);   // Basis + in die Planung übernommene Szenarien
+  const baseSeries=buildSeries(inBase);
   renderStats(baseSeries,computeStats(baseSeries));
-  const active=state.scenarios.filter(s=>s.active);
-  const extraLines=active.map(s=>({ pts:buildSeries(e=>isBaseEntry(e)||e.scenario===s.id).pts, color:s.c, name:s.name }));
+  const parallel=state.scenarios.filter(s=>s.mode!=="merged"&&s.active);
+  const extraLines=parallel.map(s=>({ pts:buildSeries(e=>inBase(e)||e.scenario===s.id).pts, color:s.c, name:s.name }));
   renderChart(baseSeries, extraLines);
   document.getElementById("catCard").style.display = state.showCat ? "" : "none";
   document.getElementById("catCardIncome").style.display = state.showCat ? "" : "none";
   if(state.showCat) renderCatCharts(baseSeries);
   renderScenBar();
-  renderList(baseSeries, active);
+  renderList(baseSeries, parallel, merged);
   renderBackupBar();
   save();
 }
@@ -947,12 +1012,47 @@ document.getElementById("catSave").addEventListener("click",()=>{
   fillCatOptions(); render();
 });
 
+/* ===== Balance correction manager ===== */
+const corrOverlay=document.getElementById("corrOverlay");
+function makeCorrRow(cr){
+  const row=document.createElement("div"); row.className="cat-row corr-row";
+  row.innerHTML=`<input type="date" class="corr-date" value="${cr?cr.date:todayISO()}"><input type="number" class="corr-bal" step="0.01" value="${cr?cr.balance:""}" placeholder="Ist-Stand (€)"><button type="button" class="del" title="Löschen">✕</button>`;
+  row.querySelector(".del").addEventListener("click",()=>row.remove());
+  return row;
+}
+function openCorrManager(){
+  const cont=document.getElementById("corrRows"); cont.innerHTML="";
+  corrList().forEach(c=>cont.appendChild(makeCorrRow(c)));
+  corrOverlay.classList.add("show");
+}
+document.getElementById("manageCorrBtn").addEventListener("click",()=>{ menuOverlay.classList.remove("show"); openCorrManager(); });
+document.getElementById("openCorrFromStart").addEventListener("click",()=>{ startOverlay.classList.remove("show"); openCorrManager(); });
+document.getElementById("addCorrRow").addEventListener("click",()=>{ const c=document.getElementById("corrRows"); const r=makeCorrRow(null); c.appendChild(r); r.querySelector(".corr-bal").focus(); });
+document.getElementById("corrCancel").addEventListener("click",()=>corrOverlay.classList.remove("show"));
+corrOverlay.addEventListener("click",e=>{ if(e.target===corrOverlay) corrOverlay.classList.remove("show"); });
+document.getElementById("corrSave").addEventListener("click",()=>{
+  const rows=[...document.querySelectorAll("#corrRows .corr-row")];
+  const map=new Map();
+  for(const r of rows){
+    const date=r.querySelector(".corr-date").value;
+    const raw=r.querySelector(".corr-bal").value;
+    if(!date || raw==="") continue;
+    const balance=parseFloat(raw); if(!isFinite(balance)) continue;
+    map.set(date,balance);                       // pro Datum letzter Wert
+  }
+  state.corrections=[...map.entries()].map(([date,balance])=>({date,balance})).sort((a,b)=> a.date<b.date?-1 : a.date>b.date?1 : 0);
+  state.touched=true;
+  corrOverlay.classList.remove("show");
+  render();
+});
+
 /* ===== Scenario manager ===== */
 const scenOverlay=document.getElementById("scenOverlay");
 function makeScenRow(sc){
   const row=document.createElement("div"); row.className="cat-row"; row.dataset.id=sc?sc.id:"";
   const color=sc?sc.c:PALETTE[Math.floor(Math.random()*PALETTE.length)];
-  row.innerHTML=`<input type="color" value="${color}"><input type="text" value="${sc?escapeAttr(sc.name):""}" placeholder="Szenario-Name" maxlength="32"><button type="button" class="del" title="Löschen">✕</button>`;
+  const mode=sc&&sc.mode==="merged"?"merged":"parallel";
+  row.innerHTML=`<input type="color" value="${color}"><input type="text" value="${sc?escapeAttr(sc.name):""}" placeholder="Szenario-Name" maxlength="32"><select class="scenmode-sel" title="Wie wirkt das Szenario?"><option value="parallel"${mode==="parallel"?" selected":""}>Vergleichslinie</option><option value="merged"${mode==="merged"?" selected":""}>In Planung übernehmen</option></select><button type="button" class="del" title="Löschen">✕</button>`;
   row.querySelector(".del").addEventListener("click",()=>row.remove());
   return row;
 }
@@ -973,11 +1073,12 @@ document.getElementById("scenSave").addEventListener("click",()=>{
     const name=r.querySelector("input[type=text]").value.trim();
     if(!name) continue;
     const c=r.querySelector("input[type=color]").value;
+    const mode=r.querySelector("select.scenmode-sel").value==="merged"?"merged":"parallel";
     let id=r.dataset.id || slugId(name,used);
     if(used.has(id)) id=slugId(name+"-"+Math.random().toString(36).slice(2,4),used);
     used.add(id);
     const existing=state.scenarios.find(s=>s.id===id);
-    newScens.push({id,name,c,active: existing?existing.active:true}); // neue Szenarien direkt sichtbar
+    newScens.push({id,name,c,mode,active: mode==="merged"?false:(existing?existing.active:true)}); // neue Szenarien direkt sichtbar
   }
   const validIds=new Set(newScens.map(s=>s.id));
   state.entries.forEach(e=>{ if(e.scenario && e.scenario!=="base" && !validIds.has(e.scenario)) e.scenario="base"; });
@@ -1016,7 +1117,7 @@ document.getElementById("importFile").addEventListener("change",e=>{ const f=e.t
   r.onload=()=>{ try{ const d=JSON.parse(r.result); if(d&&Array.isArray(d.entries)){ state=migrate(d); fillCatOptions(); syncControls(); render(); menuOverlay.classList.remove("show"); } else alert("Ungültige Datei."); }catch(err){ alert("Konnte Datei nicht lesen."); } };
   r.readAsText(f); });
 document.getElementById("demoBtn").addEventListener("click",()=>{ state=demoData(); render(); menuOverlay.classList.remove("show"); });
-document.getElementById("resetBtn").addEventListener("click",()=>{ if(confirm("Alle Daten in diesem Browser löschen?")){ state={startBalance:0,startDate:todayISO(),horizon:6,group:"month",showCat:false,showPast:false,cats:cloneCats(),scenarios:[],done:[],lastExport:null,touched:false,entries:[]}; fillCatOptions(); fillScenOptions(); syncControls(); render(); menuOverlay.classList.remove("show"); } });
+document.getElementById("resetBtn").addEventListener("click",()=>{ if(confirm("Alle Daten in diesem Browser löschen?")){ state={startBalance:0,startDate:todayISO(),horizon:6,group:"month",showCat:false,showPast:false,cats:cloneCats(),scenarios:[],corrections:[],done:[],lastExport:null,touched:false,entries:[]}; fillCatOptions(); fillScenOptions(); syncControls(); render(); menuOverlay.classList.remove("show"); } });
 
 /* ===== Demo data ===== */
 function demoData(){
@@ -1034,7 +1135,7 @@ function demoData(){
 }
 
 /* ===== Keyboard / resize ===== */
-document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ scenOverlay.classList.remove("show"); catOverlay.classList.remove("show"); closeEntry(); startOverlay.classList.remove("show"); menuOverlay.classList.remove("show"); } });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ scenOverlay.classList.remove("show"); catOverlay.classList.remove("show"); corrOverlay.classList.remove("show"); closeEntry(); startOverlay.classList.remove("show"); menuOverlay.classList.remove("show"); } });
 window.addEventListener("resize",()=>{ if(window.__chart){ renderChart(window.__chart.series, window.__chart.extraLines); if(state.showCat) renderCatCharts(window.__chart.series); } });
 
 /* ===== Init ===== */
