@@ -52,11 +52,22 @@ Eine Zahlung später bearbeiten: auf das **✎** in der Liste klicken.
 - **Stufenkurve**: Der Kontostand springt am Buchungstag und ist dazwischen konstant — so verhält sich ein echtes Konto.
 - **Heute-Markierung** und eine **rote Warnzone unter 0 €**.
 - **Hover** über einen Punkt zeigt die Buchungen dieses Tages.
-- Oben rechts der angezeigte **Zeitraum**.
+- Oben rechts der angezeigte **Zeitraum**, links daneben der **Soll/Ist-Umschalter** (siehe unten).
+
+### Soll & Ist (Plan vs. tatsächlich)
+Eine Liquiditätsplanung ist zunächst ein **Soll-Zustand**: alle geplanten Zahlungen zu ihrem geplanten Datum. In der Realität wird aber verschoben oder verspätet gezahlt. Über den **„ausgeführt"-Haken** (in der Liste, siehe unten) unterscheidet die App **Soll** und **Ist** und zeigt beides in der Kurve.
+
+- **Umschalter am Chart:** **Ist & Prognose** · **Soll** · **Beide**.
+  - **Soll (Plan):** jede geplante Zahlung zählt an ihrem geplanten Datum — der reine Plan.
+  - **Ist & Prognose:** ausgeführte Zahlungen zählen wie geplant; **überfällige, noch nicht abgehakte** Posten gelten als **weiterhin offen** und werden als **unmittelbar fällig** geführt. Dadurch zeigt **„Stand heute"** die **tatsächlich verfügbare** Liquidität (überfällige Beträge sind noch nicht abgezogen), und der offene Posten erscheint als bevorstehender Abfall.
+  - **Beide:** Ist als durchgezogene, Soll als **gestrichelte** Vergleichslinie. Die Lücke zwischen beiden = genau der Effekt der verschobenen Zahlungen. Solange nichts überfällig-offen ist, sind beide Linien identisch (keine zweite Linie nötig).
+- Soll und Ist **enden am Horizont gleich** — es geht nur um das **Timing** (wann eine Zahlung wirkt), nicht um den Gesamtbetrag.
+- **Tipp:** Den Unterschied siehst du am deutlichsten mit aktiviertem **„Vergangenes"**, weil das Verzögerungsfenster meist in der jüngeren Vergangenheit liegt.
 
 ### Kennzahlen (oben)
-- **Stand heute** — Kontostand zum heutigen Tag.
-- **Tiefststand** — der niedrigste Punkt im angezeigten Zeitraum samt Datum (die wichtigste Zahl für die Liquiditätsplanung). Wird er negativ, erscheint eine Warnung.
+Die Kennzahlen folgen der **Ist-Sicht** (mit „Ist"-Markierung gekennzeichnet) — sie zeigen die tatsächlich verfügbare Liquidität, unabhängig davon, welche Linie im Chart gerade gewählt ist.
+- **Stand heute** — real verfügbarer Kontostand heute (überfällige, offene Posten noch **nicht** abgezogen).
+- **Tiefststand** — der niedrigste Punkt im angezeigten Zeitraum samt Datum (die wichtigste Zahl für die Liquiditätsplanung), inkl. der noch fälligen überfälligen Posten. Wird er negativ, erscheint eine Warnung.
 - **Ende Horizont** — Kontostand am Ende des gewählten Zeitraums.
 - **Startkontostand** — dein Ausgangswert.
 
@@ -66,8 +77,8 @@ Auswahl oben (3 / 6 / 12 / 24 Monate): legt fest, wie weit Wiederholungen und Ku
 ### „Vergangenes" ein-/ausblenden
 Standardmäßig beginnt die Ansicht **heute** und blickt nach vorn. Vergangene Zahlungen sind weiterhin **in der Berechnung** (der Kontostand heute ist also korrekt fortgeschrieben), werden aber erst angezeigt, wenn du **„Vergangenes"** aktivierst.
 
-### Zahlungen abhaken (erledigt)
-In der Liste sitzt vor jeder Zahlung ein **Häkchen-Kästchen**. Abhaken markiert die Zahlung als erledigt (Haken, durchgestrichen, ausgegraut). Das ist **rein optisch** — der Betrag bleibt voll in der Berechnung. Der Status wird **pro Termin** gespeichert, funktioniert also auch bei wiederkehrenden Zahlungen (Juli abgehakt ≠ August abgehakt).
+### Zahlungen abhaken (ausgeführt)
+In der Liste sitzt vor jeder Zahlung ein **Häkchen-Kästchen**. Abhaken markiert die Zahlung als **ausgeführt** (Haken, durchgestrichen, ausgegraut). Das steuert die **Ist-Kurve** (siehe „Soll & Ist"): abgehakte Zahlungen gelten als tatsächlich geflossen. Ein **nicht** abgehakter Posten, dessen Datum bereits vergangen ist, wird als **„überfällig"** markiert und im Ist als noch offen geführt — er wird also **nicht** gelöscht, bleibt zu zahlen. Der Status wird **pro Termin** gespeichert, funktioniert also auch bei wiederkehrenden Zahlungen (Juli abgehakt ≠ August abgehakt).
 
 ### Kategorien
 Jede Zahlung hat eine farbige Kategorie. Über **„Kategorien"** (Button oben) öffnet sich die Ansicht **„Ausgaben nach Kategorie"** und **„Einnahmen nach Kategorie"** — gestapelte Balken pro Monat in den Kategoriefarben.
@@ -145,6 +156,7 @@ Der Export ist eine JSON-Datei mit dieser Struktur:
   "startDate": "2026-06-11",       // Stichtag (YYYY-MM-DD)
   "horizon": 6,                    // Monate
   "group": "month",                // Listengruppierung: "month" | "week"
+  "view": "both",                  // Chart-Ansicht: "ist" | "soll" | "both"
   "showCat": false,                // Kategorie-Diagramme sichtbar
   "showPast": false,               // Vergangenes anzeigen
   "cats": [                        // Kategorien
@@ -158,7 +170,7 @@ Der Export ist eine JSON-Datei mit dieser Struktur:
   "corrections": [                 // Kontostand-Korrekturen (Ist-Stand-Anker)
     { "date": "2026-08-20", "balance": 2600 }
   ],
-  "done": [ "e123|2026-07-01" ],   // erledigte Termine: "<entryId>|<datum>"
+  "done": [ "e123|2026-07-01" ],   // ausgeführte Termine (steuert Ist-Kurve): "<entryId>|<datum>"
   "entries": [                     // Zahlungen
     {
       "id": "e123",

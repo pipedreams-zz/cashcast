@@ -12,7 +12,7 @@ Die **Vollversion** (geplant als dünne Forecast-Schicht auf **Actual Budget**) 
 
 ## Stand
 
-- ✅ **Lite-Prototyp** lauffähig (Forecast-Kurve, Kontostand-Korrekturen/Ist-Stand, Kategorien, Szenarien – als Vergleichslinie oder in die Planung übernommen, Wiederholungen, Erledigt-Status, Hell/Dunkel, JSON-Export/Import, Backup-Erinnerung).
+- ✅ **Lite-Prototyp** lauffähig (Forecast-Kurve, Soll/Ist-Ansicht über den Ausführungsstatus, Kontostand-Korrekturen/Ist-Stand, Kategorien, Szenarien – als Vergleichslinie oder in die Planung übernommen, Wiederholungen, Hell/Dunkel, JSON-Export/Import, Backup-Erinnerung).
 - ⏳ **Vollversion**: erst geplant. Voraussetzung ist, dass die Kategorisierung in Actual (actual-ai) sauber genug ist — vorher validieren.
 
 ## Schnellstart (Lite)
