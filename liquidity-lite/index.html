@@ -117,6 +117,10 @@
   .pill{display:inline-block;font-size:10.5px;padding:1px 7px;border-radius:20px;background:var(--accent-soft);color:var(--accent);font-weight:600;vertical-align:middle}
   .pill.overdue{background:color-mix(in srgb,var(--danger) 15%,transparent);color:var(--danger)}
   tr.overdue-row td.date{color:var(--danger);font-weight:600}
+  .grouphdr.overdue-hdr td{background:color-mix(in srgb,var(--danger) 13%,transparent);color:var(--danger)}
+  .actdate{font-family:inherit;font-size:11px;padding:2px 5px;border:1px solid var(--line);border-radius:7px;background:var(--bg-soft);color:var(--muted);margin-right:5px;vertical-align:middle;cursor:pointer}
+  .actdate:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);color:var(--ink)}
+  .actdate.shifted{border-color:var(--accent);color:var(--accent)}
   .ch-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .istbadge{font-size:9px;font-weight:700;letter-spacing:.4px;color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:0 4px;margin-left:5px;vertical-align:middle;text-transform:none;cursor:help}
   .row-neg td.bal{color:var(--danger);font-weight:700}
@@ -490,7 +494,7 @@ let state = load();
 
 function load(){
   try{ const raw=localStorage.getItem(KEY); if(raw) return migrate(JSON.parse(raw)); }catch(e){}
-  return { startBalance:5000, startDate:todayISO(), horizon:6, group:"month", view:"both", showCat:false, showPast:false, cats:cloneCats(), scenarios:[], corrections:[], done:[], lastExport:null, touched:false, entries:[] };
+  return { startBalance:5000, startDate:todayISO(), horizon:6, group:"month", view:"both", showCat:false, showPast:false, cats:cloneCats(), scenarios:[], corrections:[], done:[], actualDates:{}, lastExport:null, touched:false, entries:[] };
 }
 function migrate(s){
   if(!Array.isArray(s.cats)||!s.cats.length) s.cats=cloneCats();
@@ -499,6 +503,7 @@ function migrate(s){
   if(!Array.isArray(s.corrections)) s.corrections=[];
   if(!["both","ist","soll"].includes(s.view)) s.view="both";
   if(!Array.isArray(s.done)) s.done=[];
+  if(typeof s.actualDates!=="object"||s.actualDates===null||Array.isArray(s.actualDates)) s.actualDates={};
   if(typeof s.lastExport==="undefined") s.lastExport=null;
   if(typeof s.touched==="undefined") s.touched=false;
   (s.entries||[]).forEach(e=>{ if(!e.cat) e.cat = e.type==="income"?"einkommen":"sonstiges"; });
@@ -592,9 +597,16 @@ function buildSeries(filterFn){ return seriesFromOcc(expandAll(filterFn)); }
 const isDone = o => state.done.includes(doneKey(o.id,o.date));
 function buildSeriesIst(filterFn){
   const t=todayISO(), start=state.startDate, pending=addDays(t,1);
-  const occ=expandAll(filterFn).map(o=>
-    (!isDone(o) && o.date>=start && o.date<t) ? {...o, date:pending, overdue:true} : o
-  );
+  const act=state.actualDates||{};
+  const occ=expandAll(filterFn).map(o=>{
+    const key=doneKey(o.id,o.date);
+    if(isDone(o)){                                              // ausgeführt: ggf. zum tatsächlichen Datum
+      const a=act[key];
+      return (a && a!==o.date) ? {...o, date:a, actual:true} : o;
+    }
+    if(o.date>=start && o.date<t) return {...o, date:pending, overdue:true};   // überfällig & offen → noch fällig
+    return o;
+  });
   return seriesFromOcc(occ);
 }
 function sameSeries(a,b){
@@ -755,12 +767,14 @@ function renderList(series, activeScens, mergedSet){
   const corr=corrList(); let ci=0;
   let bal=state.startBalance;
   while(ci<corr.length && corr[ci].date<=state.startDate){ bal=corr[ci].balance; ci++; }
-  const rows=[];
+  const rows=[]; const overdueRows=[]; const today=todayISO();
   for(const o of series.occ){
     if(o.date<state.startDate) continue;
     while(ci<corr.length && corr[ci].date<=o.date){ bal=corr[ci].balance; ci++; }  // Re-Anker auf Ist-Stand
     bal+=o.amount;
-    if(o.date>=vs) rows.push({...o,bal,isScen:false});
+    const row={...o,bal,isScen:false};
+    if(o.date>=vs) rows.push(row);
+    else if(!state.showPast && o.date<today && !state.done.includes(doneKey(o.id,o.date))) overdueRows.push(row); // überfällig & offen: immer zeigen
   }
   // Szenario-Zeilen (aktive Vergleichs-Szenarien) – hypothetisch, ohne Pfad-Saldo
   for(const s of activeScens){
@@ -770,7 +784,7 @@ function renderList(series, activeScens, mergedSet){
     }
   }
   rows.sort((a,b)=> a.date<b.date?-1 : a.date>b.date?1 : (a.isScen===b.isScen?0:(a.isScen?1:-1)));
-  if(!rows.length){
+  if(!rows.length && !overdueRows.length){
     const anyBase = series.occ.some(o=>o.date>=state.startDate);
     const msg = anyBase
       ? `Keine Zahlungen ab heute.<br><span style="font-size:12px">Über „Vergangenes" oben kannst du frühere Zahlungen einblenden.</span>`
@@ -779,40 +793,53 @@ function renderList(series, activeScens, mergedSet){
   }
   const groupKey=state.group==="week"?weekKey:monthKey;
   const groupLabel=state.group==="week"?weekLabel:monthLabel;
+  const scenRow = r => {
+    const cat=catById(r.cat);
+    const recurPill=r.recur&&r.recur!=="once"?`<span class="pill">${recurName(r.recur)}</span>`:"";
+    const catPill=`<span class="catpill" style="background:${hexToRgba(cat.c,.16)};color:${cat.c}">${escapeHtml(cat.name)}</span>`;
+    const scenPill=`<span class="scenchip mini" style="background:${hexToRgba(r.scenColor,.18)};color:${r.scenColor}">${escapeHtml(r.scenName)}</span>`;
+    return `<tr class="scen-row">
+        <td class="check"></td>
+        <td class="date">${fmtDateShort(r.date)}</td>
+        <td><div class="desc-cell"><span class="catdot" style="background:${cat.c}"></span>${escapeHtml(r.desc)} ${catPill}${recurPill}${scenPill}</div></td>
+        <td class="amt ${r.amount>0?'pos':'neg'}">${r.amount>0?'+':''}${eur.format(r.amount)}</td>
+        <td class="bal" style="color:var(--muted)" title="Szenario – wird nur im Chart simuliert">–</td>
+        <td class="act"><button class="iconbtn" onclick="editEntry('${r.id}')">✎</button></td>
+      </tr>`;
+  };
+  const baseRow = r => {
+    const cat=catById(r.cat);
+    const recurPill=r.recur&&r.recur!=="once"?`<span class="pill">${recurName(r.recur)}</span>`:"";
+    const catPill=`<span class="catpill" style="background:${hexToRgba(cat.c,.16)};color:${cat.c}">${escapeHtml(cat.name)}</span>`;
+    const key=doneKey(r.id,r.date);
+    const done=state.done.includes(key);
+    const overdue=!done && r.date<today;
+    const actual=(state.actualDates&&state.actualDates[key])||r.date;
+    const mScen=(r.scenario&&r.scenario!=="base"&&mergedSet.has(r.scenario))?state.scenarios.find(x=>x.id===r.scenario):null;
+    const mergedPill=mScen?`<span class="scenchip mini" style="background:${hexToRgba(mScen.c,.18)};color:${mScen.c}" title="Aus Szenario – in die Planung übernommen">${escapeHtml(mScen.name)}</span>`:"";
+    const overduePill=overdue?`<span class="pill overdue" title="Überfällig – geplant, aber noch nicht ausgeführt">überfällig</span>`:"";
+    const shiftPill=(done&&actual!==r.date)?`<span class="pill" title="Tatsächlich ausgeführt am ${fmtDate(actual)}">→ ${fmtDateShort(actual)}</span>`:"";
+    const actInput=done?`<input type="date" class="actdate${actual!==r.date?' shifted':''}" title="Tatsächliches Ausführungsdatum – wirkt im Ist" value="${actual}" onchange="setActualDate('${r.id}','${r.date}',this.value)">`:"";
+    return `<tr class="${r.bal<0?'row-neg':''} ${done?'done':''} ${overdue?'overdue-row':''}">
+        <td class="check"><button class="checkbtn ${done?'on':''}" title="Als ausgeführt markieren" onclick="toggleDone('${r.id}','${r.date}')">${done?'✓':''}</button></td>
+        <td class="date">${fmtDateShort(r.date)}</td>
+        <td><div class="desc-cell"><span class="catdot" style="background:${cat.c}"></span><span class="desc-txt">${escapeHtml(r.desc)}</span> ${catPill}${recurPill}${mergedPill}${overduePill}${shiftPill}</div></td>
+        <td class="amt ${r.amount>0?'pos':'neg'}">${r.amount>0?'+':''}${eur.format(r.amount)}</td>
+        <td class="bal">${eur.format(r.bal)}</td>
+        <td class="act">${actInput}<button class="iconbtn" onclick="editEntry('${r.id}')">✎</button></td>
+      </tr>`;
+  };
   let html=`<table><thead><tr><th></th><th>Datum</th><th>Bezeichnung</th><th class="amt">Betrag</th><th class="bal">Kontostand</th><th></th></tr></thead><tbody>`;
+  if(overdueRows.length){
+    overdueRows.sort((a,b)=> a.date<b.date?-1 : a.date>b.date?1 : 0);
+    html+=`<tr class="grouphdr overdue-hdr"><td colspan="6">⚠ Überfällig · noch offen</td></tr>`;
+    for(const r of overdueRows) html+=baseRow(r);
+  }
   let curG=null;
   for(const r of rows){
     const g=groupKey(r.date);
     if(g!==curG){ curG=g; html+=`<tr class="grouphdr"><td colspan="6">${groupLabel(r.date)}</td></tr>`; }
-    const sign=r.amount>0?"pos":"neg";
-    const cat=catById(r.cat);
-    const recurPill=r.recur&&r.recur!=="once"?`<span class="pill">${recurName(r.recur)}</span>`:"";
-    const catPill=`<span class="catpill" style="background:${hexToRgba(cat.c,.16)};color:${cat.c}">${escapeHtml(cat.name)}</span>`;
-    if(r.isScen){
-      const scenPill=`<span class="scenchip mini" style="background:${hexToRgba(r.scenColor,.18)};color:${r.scenColor}">${escapeHtml(r.scenName)}</span>`;
-      html+=`<tr class="scen-row">
-        <td class="check"></td>
-        <td class="date">${fmtDateShort(r.date)}</td>
-        <td><div class="desc-cell"><span class="catdot" style="background:${cat.c}"></span>${escapeHtml(r.desc)} ${catPill}${recurPill}${scenPill}</div></td>
-        <td class="amt ${sign}">${r.amount>0?'+':''}${eur.format(r.amount)}</td>
-        <td class="bal" style="color:var(--muted)" title="Szenario – wird nur im Chart simuliert">–</td>
-        <td class="act"><button class="iconbtn" onclick="editEntry('${r.id}')">✎</button></td>
-      </tr>`;
-    }else{
-      const done=state.done.includes(doneKey(r.id,r.date));
-      const overdue = !done && r.date<todayISO();
-      const mScen = (r.scenario&&r.scenario!=="base"&&mergedSet.has(r.scenario)) ? state.scenarios.find(x=>x.id===r.scenario) : null;
-      const mergedPill = mScen ? `<span class="scenchip mini" style="background:${hexToRgba(mScen.c,.18)};color:${mScen.c}" title="Aus Szenario – in die Planung übernommen">${escapeHtml(mScen.name)}</span>` : "";
-      const overduePill = overdue ? `<span class="pill overdue" title="Überfällig – geplant, aber noch nicht ausgeführt">überfällig</span>` : "";
-      html+=`<tr class="${r.bal<0?'row-neg':''} ${done?'done':''} ${overdue?'overdue-row':''}">
-        <td class="check"><button class="checkbtn ${done?'on':''}" title="Als ausgeführt markieren" onclick="toggleDone('${r.id}','${r.date}')">${done?'✓':''}</button></td>
-        <td class="date">${fmtDateShort(r.date)}</td>
-        <td><div class="desc-cell"><span class="catdot" style="background:${cat.c}"></span><span class="desc-txt">${escapeHtml(r.desc)}</span> ${catPill}${recurPill}${mergedPill}${overduePill}</div></td>
-        <td class="amt ${sign}">${r.amount>0?'+':''}${eur.format(r.amount)}</td>
-        <td class="bal">${eur.format(r.bal)}</td>
-        <td class="act"><button class="iconbtn" onclick="editEntry('${r.id}')">✎</button></td>
-      </tr>`;
-    }
+    html += r.isScen ? scenRow(r) : baseRow(r);
   }
   html+=`</tbody></table>`; wrap.innerHTML=html;
 }
@@ -909,7 +936,8 @@ function updateLastExportHint(){
 
 /* ===== Done-Status & Szenarien ===== */
 const doneKey = (id,date) => id+"|"+date;
-window.toggleDone = (id,date)=>{ const k=doneKey(id,date); const i=state.done.indexOf(k); if(i>=0) state.done.splice(i,1); else state.done.push(k); render(); };
+window.toggleDone = (id,date)=>{ const k=doneKey(id,date); const i=state.done.indexOf(k); if(i>=0){ state.done.splice(i,1); if(state.actualDates) delete state.actualDates[k]; } else state.done.push(k); render(); };
+window.setActualDate = (id,planned,val)=>{ state.actualDates=state.actualDates||{}; const k=doneKey(id,planned); if(!val||val===planned) delete state.actualDates[k]; else state.actualDates[k]=val; render(); };
 window.toggleScen = id=>{ const s=state.scenarios.find(x=>x.id===id); if(s){ s.active=!s.active; render(); } };
 window.setScenMode = (id,mode)=>{ const s=state.scenarios.find(x=>x.id===id); if(s){ s.mode=mode; s.active = mode!=="merged"; render(); } };
 function renderScenBar(){
@@ -1160,13 +1188,13 @@ document.getElementById("importFile").addEventListener("change",e=>{ const f=e.t
   r.onload=()=>{ try{ const d=JSON.parse(r.result); if(d&&Array.isArray(d.entries)){ state=migrate(d); fillCatOptions(); syncControls(); render(); menuOverlay.classList.remove("show"); } else alert("Ungültige Datei."); }catch(err){ alert("Konnte Datei nicht lesen."); } };
   r.readAsText(f); });
 document.getElementById("demoBtn").addEventListener("click",()=>{ state=demoData(); render(); menuOverlay.classList.remove("show"); });
-document.getElementById("resetBtn").addEventListener("click",()=>{ if(confirm("Alle Daten in diesem Browser löschen?")){ state={startBalance:0,startDate:todayISO(),horizon:6,group:"month",view:"both",showCat:false,showPast:false,cats:cloneCats(),scenarios:[],corrections:[],done:[],lastExport:null,touched:false,entries:[]}; fillCatOptions(); fillScenOptions(); syncControls(); render(); menuOverlay.classList.remove("show"); } });
+document.getElementById("resetBtn").addEventListener("click",()=>{ if(confirm("Alle Daten in diesem Browser löschen?")){ state={startBalance:0,startDate:todayISO(),horizon:6,group:"month",view:"both",showCat:false,showPast:false,cats:cloneCats(),scenarios:[],corrections:[],done:[],actualDates:{},lastExport:null,touched:false,entries:[]}; fillCatOptions(); fillScenOptions(); syncControls(); render(); menuOverlay.classList.remove("show"); } });
 
 /* ===== Demo data ===== */
 function demoData(){
   const t=new Date(); const y=t.getFullYear(),m=t.getMonth();
   const d=(mon,day)=>toISO(new Date(y,mon,day));
-  return { startBalance:4200, startDate:todayISO(), horizon:6, group:"month", view:"both", showCat:false, showPast:false, cats:cloneCats(), scenarios:[], corrections:[], done:[], lastExport:null, touched:false, entries:[
+  return { startBalance:4200, startDate:todayISO(), horizon:6, group:"month", view:"both", showCat:false, showPast:false, cats:cloneCats(), scenarios:[], corrections:[], done:[], actualDates:{}, lastExport:null, touched:false, entries:[
     {id:"d1",type:"expense",desc:"Miete",amount:1200,date:d(m,1),cat:"wohnen",recur:"monthly",until:null},
     {id:"d2",type:"income",desc:"Gehalt",amount:3500,date:d(m,28),cat:"einkommen",recur:"monthly",until:null},
     {id:"d3",type:"expense",desc:"Krankenversicherung",amount:420,date:d(m,15),cat:"versicherung",recur:"monthly",until:null},

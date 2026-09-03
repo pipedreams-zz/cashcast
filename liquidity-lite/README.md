@@ -59,7 +59,7 @@ Eine Liquiditätsplanung ist zunächst ein **Soll-Zustand**: alle geplanten Zahl
 
 - **Umschalter am Chart:** **Ist & Prognose** · **Soll** · **Beide**.
   - **Soll (Plan):** jede geplante Zahlung zählt an ihrem geplanten Datum — der reine Plan.
-  - **Ist & Prognose:** ausgeführte Zahlungen zählen wie geplant; **überfällige, noch nicht abgehakte** Posten gelten als **weiterhin offen** und werden als **unmittelbar fällig** geführt. Dadurch zeigt **„Stand heute"** die **tatsächlich verfügbare** Liquidität (überfällige Beträge sind noch nicht abgezogen), und der offene Posten erscheint als bevorstehender Abfall.
+  - **Ist & Prognose:** ausgeführte Zahlungen zählen zu ihrem tatsächlichen Datum (siehe Ausführungsdatum unten); **überfällige, noch nicht abgehakte** Posten gelten als **weiterhin offen** und werden als **unmittelbar fällig** geführt. Dadurch zeigt **„Stand heute"** die **tatsächlich verfügbare** Liquidität (überfällige Beträge sind noch nicht abgezogen), und der offene Posten erscheint als bevorstehender Abfall.
   - **Beide:** Ist als durchgezogene, Soll als **gestrichelte** Vergleichslinie. Die Lücke zwischen beiden = genau der Effekt der verschobenen Zahlungen. Solange nichts überfällig-offen ist, sind beide Linien identisch (keine zweite Linie nötig).
 - Soll und Ist **enden am Horizont gleich** — es geht nur um das **Timing** (wann eine Zahlung wirkt), nicht um den Gesamtbetrag.
 - **Tipp:** Den Unterschied siehst du am deutlichsten mit aktiviertem **„Vergangenes"**, weil das Verzögerungsfenster meist in der jüngeren Vergangenheit liegt.
@@ -78,7 +78,12 @@ Auswahl oben (3 / 6 / 12 / 24 Monate): legt fest, wie weit Wiederholungen und Ku
 Standardmäßig beginnt die Ansicht **heute** und blickt nach vorn. Vergangene Zahlungen sind weiterhin **in der Berechnung** (der Kontostand heute ist also korrekt fortgeschrieben), werden aber erst angezeigt, wenn du **„Vergangenes"** aktivierst.
 
 ### Zahlungen abhaken (ausgeführt)
-In der Liste sitzt vor jeder Zahlung ein **Häkchen-Kästchen**. Abhaken markiert die Zahlung als **ausgeführt** (Haken, durchgestrichen, ausgegraut). Das steuert die **Ist-Kurve** (siehe „Soll & Ist"): abgehakte Zahlungen gelten als tatsächlich geflossen. Ein **nicht** abgehakter Posten, dessen Datum bereits vergangen ist, wird als **„überfällig"** markiert und im Ist als noch offen geführt — er wird also **nicht** gelöscht, bleibt zu zahlen. Der Status wird **pro Termin** gespeichert, funktioniert also auch bei wiederkehrenden Zahlungen (Juli abgehakt ≠ August abgehakt).
+In der Liste sitzt vor jeder Zahlung ein **Häkchen-Kästchen**. Abhaken markiert die Zahlung als **ausgeführt** (Haken, durchgestrichen, ausgegraut). Das steuert die **Ist-Kurve** (siehe „Soll & Ist"): abgehakte Zahlungen gelten als tatsächlich geflossen. Der Status wird **pro Termin** gespeichert, funktioniert also auch bei wiederkehrenden Zahlungen (Juli abgehakt ≠ August abgehakt).
+
+- **Überfällige Posten immer sichtbar:** Ein **nicht** abgehakter Posten, dessen Datum bereits vergangen ist, wird als **„überfällig"** markiert und erscheint — auch bei ausgeblendeter Vergangenheit — in einer eigenen Gruppe **„⚠ Überfällig · noch offen"** ganz oben in der Liste. So bleibt nichts liegen: der Posten wird **nicht** gelöscht, bleibt zu zahlen, und wird im Ist als noch offen (unmittelbar fällig) geführt.
+- **Tatsächliches Ausführungsdatum (optional):** Wurde eine Zahlung an einem **anderen Tag** als geplant ausgeführt (früher/später), kannst du auf einer abgehakten Zeile rechts das **Ausführungsdatum** setzen. Im **Ist** wirkt die Zahlung dann zu diesem tatsächlichen Datum (der **Plan/Soll** bleibt unverändert am geplanten Datum). Ein kleiner Hinweis „→ TT.MM." zeigt die Verschiebung. Leeren oder auf das Plandatum zurücksetzen entfernt die Verschiebung wieder.
+
+> Hinweis: Willst du das Ausführungsdatum eines bereits **vergangenen** Postens nachträglich ändern, blende ihn zuvor über **„Vergangenes"** ein.
 
 ### Kategorien
 Jede Zahlung hat eine farbige Kategorie. Über **„Kategorien"** (Button oben) öffnet sich die Ansicht **„Ausgaben nach Kategorie"** und **„Einnahmen nach Kategorie"** — gestapelte Balken pro Monat in den Kategoriefarben.
@@ -171,6 +176,9 @@ Der Export ist eine JSON-Datei mit dieser Struktur:
     { "date": "2026-08-20", "balance": 2600 }
   ],
   "done": [ "e123|2026-07-01" ],   // ausgeführte Termine (steuert Ist-Kurve): "<entryId>|<datum>"
+  "actualDates": {                 // optionales Ist-Ausführungsdatum je Termin (nur wenn abweichend)
+    "e123|2026-07-01": "2026-07-04"
+  },
   "entries": [                     // Zahlungen
     {
       "id": "e123",
