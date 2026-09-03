@@ -140,6 +140,8 @@ Alles läuft **lokal im Browser** (Speicher: `localStorage`). Es gibt keinen Ser
 - **Diagramme** sind handgezeichnetes SVG (keine Chart-Bibliothek).
 - **Persistenz**: Browser-`localStorage`, Schlüssel `cashcast-lite-v1` (Daten) und `cashcast-lite-theme` (Hell/Dunkel). Daten gelten **pro Browser/Profil und pro Herkunft** (`file://` bzw. eine Server-Adresse) — zum Übertragen Export/Import nutzen.
 - **Datumslogik**: ISO-Strings aus lokalen Datumsteilen (kein UTC), damit sich keine Tage verschieben. Wiederholungen werden vom Ankerdatum abgeleitet.
+- **Versions-Anzeige**: Neben dem Titel „CashCast Lite" steht ein kleiner Hinweis **⎇ &lt;Branch&gt; · Build &lt;Nr.&gt;** (Details im Tooltip), damit man immer sieht, welcher Stand läuft. Gepflegt wird er manuell über die Konstante `BUILD` im Script (Build-Nummer = Commit-Anzahl `git rev-list --count HEAD`); beim Zusammenführen auf `main` wird der Branch-Eintrag entsprechend angepasst.
+- **Beispieldaten**: Der Demo-Datensatz enthält bewusst einen **überfälligen** (noch offenen) Posten und eine **verspätet ausgeführte** Zahlung, damit Soll/Ist, die „Überfällig"-Gruppe und das Ausführungsdatum sofort sichtbar sind.
 
 ### Optional: lokale Vorschau über einen Server
 Für Entwicklung/Tests liegt eine `.claude/launch.json` bei, die einen einfachen Python-Server startet:

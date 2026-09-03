@@ -63,6 +63,7 @@
   .logo{width:40px;height:40px;border-radius:11px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:var(--accent-ink);font-weight:600;font-size:20px;font-family:var(--font-serif)}
   .brand h1{font-family:var(--font-serif);font-size:23px;margin:0;letter-spacing:-.2px;font-weight:600}
   .brand h1 .lite{font-weight:400;color:var(--muted);font-style:italic}
+  .buildtag{font-family:var(--font-sans);font-size:10px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px;margin-left:4px;vertical-align:middle;letter-spacing:.2px;white-space:nowrap;cursor:help}
   .brand p{margin:2px 0 0;font-size:12.5px;color:var(--muted)}
   .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   select,input,button{font-family:inherit;font-size:14px;color:var(--ink)}
@@ -200,7 +201,7 @@
     <div class="brand">
       <div class="logo">C</div>
       <div>
-        <h1>CashCast <span class="lite">Lite</span></h1>
+        <h1>CashCast <span class="lite">Lite</span> <span class="buildtag" id="buildTag"></span></h1>
         <p>Liquiditätsplanung · lokal · ohne Cloud</p>
       </div>
     </div>
@@ -444,6 +445,9 @@
 
 <script>
 "use strict";
+
+/* ===== Build-/Branch-Kennung (manuell gepflegt: bei jeder Änderung num/date/branch anpassen) ===== */
+const BUILD={ branch:"claude/codebase-review-d0a8a4", num:6, date:"2026-09-03" };
 
 /* ===== Kategorien (gedämpfte, harmonische Palette) ===== */
 const DEFAULT_CATS=[
@@ -1194,15 +1198,30 @@ document.getElementById("resetBtn").addEventListener("click",()=>{ if(confirm("A
 function demoData(){
   const t=new Date(); const y=t.getFullYear(),m=t.getMonth();
   const d=(mon,day)=>toISO(new Date(y,mon,day));
-  return { startBalance:4200, startDate:todayISO(), horizon:6, group:"month", view:"both", showCat:false, showPast:false, cats:cloneCats(), scenarios:[], corrections:[], done:[], actualDates:{}, lastExport:null, touched:false, entries:[
-    {id:"d1",type:"expense",desc:"Miete",amount:1200,date:d(m,1),cat:"wohnen",recur:"monthly",until:null},
-    {id:"d2",type:"income",desc:"Gehalt",amount:3500,date:d(m,28),cat:"einkommen",recur:"monthly",until:null},
-    {id:"d3",type:"expense",desc:"Krankenversicherung",amount:420,date:d(m,15),cat:"versicherung",recur:"monthly",until:null},
-    {id:"d4",type:"expense",desc:"Steuervorauszahlung",amount:2400,date:d(m+2,10),cat:"steuern",recur:"quarterly",until:null},
-    {id:"d5",type:"income",desc:"Projekt Webauftrag",amount:5000,date:d(m+1,20),cat:"einkommen",recur:"once",until:null},
-    {id:"d6",type:"expense",desc:"KFZ-Versicherung (Jahr)",amount:980,date:d(m+3,5),cat:"mobilitaet",recur:"yearly",until:null},
-    {id:"d7",type:"expense",desc:"Lebenshaltung",amount:800,date:d(m,5),cat:"lebensmittel",recur:"monthly",until:null}
-  ]};
+  const today=todayISO();
+  const E=[
+    {id:"d1",type:"expense",desc:"Miete",amount:1200,date:d(m-1,1),cat:"wohnen",scenario:"base",recur:"monthly",until:null},
+    {id:"d2",type:"income", desc:"Gehalt",amount:3500,date:d(m-1,28),cat:"einkommen",scenario:"base",recur:"monthly",until:null},
+    {id:"d3",type:"expense",desc:"Krankenversicherung",amount:420,date:d(m-1,15),cat:"versicherung",scenario:"base",recur:"monthly",until:null},
+    {id:"d7",type:"expense",desc:"Lebenshaltung",amount:800,date:d(m-1,5),cat:"lebensmittel",scenario:"base",recur:"monthly",until:null},
+    {id:"d4",type:"expense",desc:"Steuervorauszahlung",amount:2400,date:d(m,10),cat:"steuern",scenario:"base",recur:"quarterly",until:null},
+    {id:"d5",type:"income", desc:"Projekt Webauftrag",amount:5000,date:d(m+1,20),cat:"einkommen",scenario:"base",recur:"once",until:null},
+    {id:"d6",type:"expense",desc:"KFZ-Versicherung (Jahr)",amount:980,date:d(m+1,5),cat:"mobilitaet",scenario:"base",recur:"yearly",until:null},
+    {id:"strom",type:"expense",desc:"Stromnachzahlung",amount:180,date:addDays(today,-4),cat:"wohnen",scenario:"base",recur:"once",until:null},        // überfällig & offen (Demo)
+    {id:"leas", type:"expense",desc:"Leasingrate Firmenwagen",amount:300,date:today,cat:"mobilitaet",scenario:"base",recur:"once",until:null}          // ausgeführt, tatsächlich 2 Tage später (Demo)
+  ];
+  // Historie als ausgeführt markieren (sauberer Ist-Verlauf) – außer der überfälligen Stromnachzahlung
+  const done=[]; const actualDates={};
+  const monthsOf=r=> r==="monthly"?1 : r==="quarterly"?3 : r==="halfyearly"?6 : r==="yearly"?12 : 0;
+  for(const e of E){
+    if(e.id==="strom"||e.id==="leas") continue;
+    const mo=monthsOf(e.recur);
+    if(!mo){ if(e.date<today) done.push(doneKey(e.id,e.date)); continue; }
+    let k=0,dt=e.date;
+    while(dt<today && k<60){ done.push(doneKey(e.id,dt)); k++; dt=addMonths(e.date, mo*k); }
+  }
+  done.push(doneKey("leas",today)); actualDates[doneKey("leas",today)]=addDays(today,2);   // heute geplant, +2 Tage tatsächlich
+  return { startBalance:5200, startDate:d(m-1,1), horizon:6, group:"month", view:"both", showCat:false, showPast:false, cats:cloneCats(), scenarios:[], corrections:[], done, actualDates, lastExport:null, touched:false, entries:E };
 }
 
 /* ===== Keyboard / resize ===== */
@@ -1218,6 +1237,7 @@ function syncControls(){
   document.getElementById("pastToggle").classList.toggle("primary",!!state.showPast);
 }
 initTheme();
+(function(){ const bt=document.getElementById("buildTag"); if(bt){ bt.textContent="⎇ "+BUILD.branch.replace(/^claude\//,"")+" · Build "+BUILD.num; bt.title="Branch "+BUILD.branch+" · Build "+BUILD.num+" · Stand "+BUILD.date; } })();
 if(navigator.storage&&navigator.storage.persist){ try{ navigator.storage.persist(); }catch(e){} } // weniger Verdrängung durch den Browser
 fillCatOptions();
 fillScenOptions();
